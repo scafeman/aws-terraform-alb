@@ -76,7 +76,11 @@ variable "https_listeners_count" {
 variable "https_listeners" {
   description = "List of Maps of HTTPS listeners. Certificate must be in the same region as the ALB. (port, certificate_arn, ssl_policy (optional: defaults to ELBSecurityPolicy-2016-08), target_group_index (optional: defaults to 0)) i.e. [{'certificate_arn', 'arn:aws:iam::123456789012:server-certificate/test_cert-123456789012', 'port', 443}]"
   type        = "list"
-  default     = []
+
+  default = [{
+    port       = 443
+    ssl_policy = "ELBSecurityPolicy-TLS-1-2-2017-01"
+  }]
 }
 
 variable "idle_timeout" {
