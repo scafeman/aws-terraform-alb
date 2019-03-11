@@ -12,6 +12,16 @@ resource "random_string" "rstring" {
   special = false
 }
 
+resource "random_string" "sqs_rstring" {
+  length  = 18
+  upper   = false
+  special = false
+}
+
+resource "aws_sqs_queue" "my_sqs" {
+  name = "${random_string.sqs_rstring.result}-my-example-queue"
+}
+
 resource "aws_security_group" "test_sg" {
   name        = "${random_string.rstring.result}-test-sg-1"
   description = "Test SG Group"
@@ -33,7 +43,7 @@ resource "aws_security_group" "test_sg" {
 }
 
 module "vpc" {
-  source              = "git@github.com:rackspace-infrastructure-automation/aws-terraform-vpc_basenetwork//?ref=v0.0.6"
+  source              = "git::https://github.com/rackspace-infrastructure-automation/aws-terraform-vpc_basenetwork//?ref=v0.0.6"
   az_count            = 2
   cidr_range          = "10.0.0.0/16"
   public_cidr_ranges  = ["10.0.1.0/24", "10.0.3.0/24"]
@@ -42,7 +52,7 @@ module "vpc" {
 }
 
 module "alb" {
-  source = "git@github.com:rackspace-infrastructure-automation/aws-terraform-alb//?ref=v0.0.8"
+  source          = "git::https://github.com/rackspace-infrastructure-automation/aws-terraform-alb//?ref=v0.0.8"
 
   # Required
   alb_name        = "${random_string.rstring.result}-test-alb"
@@ -54,7 +64,7 @@ module "alb" {
   # Optional
   create_logging_bucket = false
 
-  create_internal_zone_record = true
+  create_internal_zone_record = false
   internal_record_name        = "alb.mupo181ve1jco37.net"
   route_53_hosted_zone_id     = "Z34VQ0W1VUIFLH"
 
@@ -88,4 +98,30 @@ module "alb" {
       "backend_port"     = 80
     },
   ]
+}
+
+module "test_sg" {
+  source        = "git::https://github.com/rackspace-infrastructure-automation/aws-terraform-security_group?ref=v0.0.6"
+  resource_name = "my_test_sg"
+  vpc_id        = "${module.vpc.vpc_id}"
+}
+
+module "sns_sqs" {
+  source     = "git::https://github.com/rackspace-infrastructure-automation/aws-terraform-sns//?ref=v0.0.2"
+  topic_name = "${random_string.sqs_rstring.result}-my-example-topic"
+
+  create_subscription_1 = true
+  protocol_1            = "sqs"
+  endpoint_1            = "${aws_sqs_queue.my_sqs.arn}"
+}
+
+module "asg" {
+  source = "git::https://github.com/scafeman/aws-terraform-ec2_asg//?ref=v0.0.11"
+ 
+  ec2_os              = "amazon"
+  subnets             = ["${module.vpc.private_subnets}"]
+#  image_id            = "${var.image_id}"
+#  image_id            = "ami-0d2f82a622136a696"
+  resource_name       = "my_asg"
+  security_group_list = ["${module.test_sg.private_web_security_group_id}"]
 }
